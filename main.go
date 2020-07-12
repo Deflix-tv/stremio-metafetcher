@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/csv"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -13,21 +14,11 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-var (
-	dataDir = flag.String("dataDir", ".", "Location of the data directory. It contains CSV files with IMDb IDs and a \"metas\" subdirectory will be used for writing metas as JSOn files.")
-)
+const version = "0.1.0"
 
 var (
-	lists = []string{
-		"imdb-top-250",
-		"imdb-most-popular",
-		"top-box-office-us",
-		"rt-certified-fresh",
-		"academy-awards-winners",
-		"palme-dor-winners",
-		"golden-lion-winners",
-		"golden-bear-winners",
-	}
+	dataDir     = flag.String("dataDir", ".", "Location of the data directory. It contains CSV files with IMDb IDs and a \"metas\" subdirectory will be used for writing metas as JSON files.")
+	versionFlag = flag.Bool("version", false, "Prints the version of stremio-metafetcher")
 )
 
 func init() {
@@ -38,13 +29,27 @@ func init() {
 func main() {
 	flag.Parse()
 
+	if *versionFlag {
+		fmt.Println("stremio-metafetcher v" + version)
+	}
+
 	// Clean input
 	if strings.HasSuffix(*dataDir, "/") {
 		*dataDir = strings.TrimRight(*dataDir, "/")
 	}
 
-	for _, list := range lists {
-		records := read(*dataDir + "/" + list + ".csv")
+	files, err := ioutil.ReadDir(*dataDir)
+	if err != nil {
+		log.Fatal("Couldn't read directory:", err)
+	}
+
+	for _, file := range files {
+		// Skip non-CSV files
+		if !strings.HasSuffix(file.Name(), ".csv") {
+			continue
+		}
+
+		records := read(*dataDir + "/" + file.Name())
 		missingMetas := determineMissingMetas(records, *dataDir+"/metas")
 		metas := fetchMetas(missingMetas)
 		writeMetas(metas, *dataDir+"/metas")
